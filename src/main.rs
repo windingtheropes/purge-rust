@@ -1,95 +1,10 @@
+mod libp;
 use std::env;
-use std::fs;
-use std::fs::Metadata;
 use std::io::{stdin, stdout, Write, Error};
+use std::fs::{Metadata, ReadDir};
+use std::fs;
 
-#[derive(Debug)]
-
-struct Options {
-    // arguments
-    path: String,
-    query: String,
-
-    // flags
-    pub start: bool,
-    pub end: bool,
-    pub ext: bool,
-    pub case_insensitive: bool,
-    pub no_ask: bool,
-
-    // options
-    pub verbose: bool,
-
-    // logging
-    pub logging: bool,
-    pub overwrite_logs: bool,
-    pub verbose_logging: bool,
-}
-
-impl Options {
-    pub fn new(args: Vec<String>) -> Options {
-        let query: String = args[0].clone();
-        let path: String = args[1].clone();
-        let flags: String = args[2].clone();
-        
-        // check if path exists and is a directory
-        let dir: Metadata = fs::metadata(&path).unwrap_or_else(|error| {
-            if error.kind() == std::io::ErrorKind::NotFound {
-                println!("Path not found.");
-                std::process::exit(1);
-            } else {
-                panic!("{}", error);
-            }
-        });
-        if !dir.is_dir() {
-            println!("{} is not a directory.", path);
-            std::process::exit(1);
-        }
-
-        let mut options = Options {
-            start: false,
-            end: false,
-            ext: false,
-            case_insensitive: false,
-            no_ask: false,
-            verbose: false,
-            logging: false,
-            overwrite_logs: false,
-            verbose_logging: false,
-            path: path,
-            query: query,
-        };
-        
-        // check flags
-        let flags = flags.chars();
-        for flag in flags {
-            match flag {
-                's' => options.start = true,
-                'e' => options.end = true,
-                'x' => options.ext = true,
-                'c' => options.case_insensitive = true,
-                'y' => options.no_ask = true,
-                'v' => options.verbose = true,
-                'l' => options.logging = true,
-                'L' => options.verbose_logging = true,
-                'o' => options.overwrite_logs = true,
-                _ => {
-                    println!("Unknown flag: {}", flag);
-                    std::process::exit(1);
-                }
-            }
-        }
-
-        options
-    }
-
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-    pub fn query(&self) -> &str {
-        &self.query
-    }
-}
+use libp::Options;
 
 fn main() {
     let mut args: Vec<String> = env::args().collect();
@@ -114,7 +29,7 @@ fn delete_file(path: &str)
     }
 }
 
-fn rmf(path : &str, options: &Options)
+fn handle_delete(path : &str, options: &Options)
 {
     if options.no_ask == true
     {
@@ -139,9 +54,10 @@ fn rmf(path : &str, options: &Options)
 
 fn run(options: Options) {
     println!("Searching for files with query `{}` in `{}`. ", options.query(), options.path());
-    fn read_dir(dir: String, options: &Options) {
+    fn read_dir(path: String, options: &Options, dir: ReadDir) {
         let mut query: String = String::from(options.query().clone());
-        let dir = fs::read_dir(dir).unwrap();
+        let d = fs::read_dir(&path).unwrap();
+
         for item in dir {
             if options.verbose == true {println!("Now reading directory {:?}", item.as_ref().unwrap().path());}
             // stuff here is wrapped in Ok and DirEntry
@@ -152,12 +68,34 @@ fn run(options: Options) {
             let mut file_name: String = String::from(file_name[file_name.len() - 1]);
 
             // object because it is either a file or directory
-            let object: Metadata = fs::metadata(&path).unwrap(); // reference path it so it doesnt move to metadata and we can keep using it
+            let object = fs::metadata(&path); // reference path it so it doesnt move to metadata and we can keep using it
+            // make sure there are no errors before continuing
+            let object = match object {
+                Ok(r) => r,
+                Err(_) => {
+                    if options.verbose {
+                        println!("Failed to read directory {}", path.to_str().unwrap());
+                    }
+                    continue
+                }
+            };
 
             if object.is_dir()
             {      
-                // println!("{:?}", path);
-                read_dir(String::from(path.to_str().unwrap()), &options);
+                // check if the directory is accessible, BEFORE executing the function, so we can handle errors before running
+                let dir = fs::read_dir(&path);
+                // make sure there are no errors before continuing
+                let dir = match dir {
+                    Ok(r) => r,
+                    Err(_) => {
+                        if options.verbose {
+                            println!("Failed to read directory {}", path.to_str().unwrap());
+                        }
+                        continue
+                    },
+                };
+
+                read_dir(String::from(path.to_str().unwrap()), &options, dir);
             }
             else if object.is_file()
             {
@@ -178,7 +116,7 @@ fn run(options: Options) {
                         let extension = file_name.split(".").collect::<Vec<&str>>()[1];
                         if extension == query
                         {   
-                            rmf(&path.to_str().unwrap(), options)
+                            handle_delete(&path.to_str().unwrap(), options)
                         }
                     },
                     _ => {
@@ -192,7 +130,7 @@ fn run(options: Options) {
                         let name = file_name.split(".").collect::<Vec<&str>>()[0];
                         if name.ends_with(&query) 
                         {   
-                            rmf(&path.to_str().unwrap(), options)
+                            handle_delete(&path.to_str().unwrap(), options)
                         }
                     },
                     _ => {
@@ -205,7 +143,7 @@ fn run(options: Options) {
                     true => {
                         if file_name.ends_with(&query) 
                         {   
-                            rmf(&path.to_str().unwrap(), options)
+                            handle_delete(&path.to_str().unwrap(), options)
                         }
                     },
                     _ => {
@@ -219,6 +157,6 @@ fn run(options: Options) {
         }
     }
 
-    read_dir(String::from(options.path()), &options);
+    read_dir(String::from(options.path()), &options, fs::read_dir(options.path()).unwrap());
     println!("Done.")
 }
