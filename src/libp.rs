@@ -13,6 +13,7 @@ pub struct Options {
     pub start: bool,
     pub end: bool,
     pub ext: bool,
+    pub multi_ext: bool,
     pub case_insensitive: bool,
     pub no_ask: bool,
 
@@ -29,7 +30,7 @@ impl Options {
     pub fn new(args: Vec<String>) -> Options {
         // for i in &args {println!("{}", i)}
         let query: String = args[0].clone();
-        let path: String = args[1].clone();
+        let mut path: String = args[1].clone();
         
         let mut flags = args.clone();
         // this removes query and path, so flags can be separated in to as many arguments as they want
@@ -45,16 +46,21 @@ impl Options {
                 panic!("{}", error);
             }
         });
+
         if !dir.is_dir() {
             println!("{} is not a directory.", path);
             std::process::exit(1);
         }
+
+        // expand path into its absolute path if it was relative
+        let path = String::from(fs::canonicalize(path).unwrap().to_owned().to_str().unwrap());
 
         // Define the default options
         let mut options = Options {
             start: false,
             end: false,
             ext: false,
+            multi_ext: false,
             case_insensitive: false,
             no_ask: false,
             verbose: false,
@@ -77,6 +83,7 @@ impl Options {
                     's' => options.start = true,
                     'e' => options.end = true,
                     'x' => options.ext = true,
+                    'X' => options.multi_ext = true,
                     'c' => options.case_insensitive = true,
                     'y' => options.no_ask = true,
                     'v' => options.verbose = true,
@@ -124,7 +131,7 @@ pub fn handle_delete(path : &str, options: &Options)
         let mut s: String = String::new();
         print!("Delete {}? (Y/N) ", path);
         let _ = stdout().flush();
-        stdin().read_line(&mut s).expect("needed a value");
+        stdin().read_line(&mut s).expect("Invalid response.");
         let s = s.as_str().trim().to_lowercase();
         let s = s.as_str();
         match s {
