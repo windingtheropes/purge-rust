@@ -1,10 +1,10 @@
 mod libp;
 use std::env;
-use std::io::{stdin, stdout, Write, Error};
-use std::fs::{Metadata, ReadDir};
+use std::fs::ReadDir;
 use std::fs;
 
 use libp::Options;
+use libp::handle_delete;
 
 fn main() {
     let mut args: Vec<String> = env::args().collect();
@@ -20,43 +20,10 @@ fn main() {
     }
 }
 
-fn delete_file(path: &str)
-{
-    let result: Result<(), Error> = fs::remove_file(path);
-    match result {
-        Ok(_) => println!("Deleted {}", path),
-        Err(_) => println!("Error deleting {}", path),
-    }
-}
-
-fn handle_delete(path : &str, options: &Options)
-{
-    if options.no_ask == true
-    {
-        delete_file(path)
-    }   
-    else {
-        let mut s: String = String::new();
-        print!("Delete {}? (Y/N)", path);
-        let _ = stdout().flush();
-        stdin().read_line(&mut s).expect("needed a value");
-        let s = s.as_str().trim().to_lowercase();
-        let s = s.as_str();
-        match s {
-            "y" => {
-                delete_file(path)
-            },
-            "n" => return println!("Not deleting {}", path),
-            _ => return println!("Not deleting {}", path),
-        };
-    }
-}
-
 fn run(options: Options) {
     println!("Searching for files with query `{}` in `{}`. ", options.query(), options.path());
     fn read_dir(path: String, options: &Options, dir: ReadDir) {
         let mut query: String = String::from(options.query().clone());
-        let d = fs::read_dir(&path).unwrap();
 
         for item in dir {
             if options.verbose == true {println!("Now reading directory {:?}", item.as_ref().unwrap().path());}
@@ -105,23 +72,31 @@ fn run(options: Options) {
                         file_name = file_name.to_lowercase();
                         query = query.to_lowercase();
                     },
-                    _ => {
-
-                    }
+                    _ => {},
                 }
 
                 // check for query at end
                 match &options.ext {
                     true => {
-                        let extension = file_name.split(".").collect::<Vec<&str>>()[1];
+                        // Since we're looking for the extension we can accept .ext or ext interchangably
+                        if query.starts_with("."){
+                            query.remove(0);
+                        } 
+
+                        let parts: Vec<&str> =  file_name.split(".").collect();
+                        if parts.len() < 2 {
+                            continue
+                        }
+
+                        let extension = parts[1];
+                        
                         if extension == query
                         {   
-                            handle_delete(&path.to_str().unwrap(), options)
+                            handle_delete(&path.to_str().unwrap(), options);
+                            continue;
                         }
                     },
-                    _ => {
-
-                    }
+                    _ => {}
                 }
 
                 // check for query at end of name
@@ -129,26 +104,24 @@ fn run(options: Options) {
                     true => {
                         let name = file_name.split(".").collect::<Vec<&str>>()[0];
                         if name.ends_with(&query) 
-                        {   
-                            handle_delete(&path.to_str().unwrap(), options)
+                        {
+                            handle_delete(&path.to_str().unwrap(), options);
+                            continue;
                         }
                     },
-                    _ => {
-
-                    }
+                    _ => {}
                 }
 
                 // check for query at start
                 match &options.start {
                     true => {
-                        if file_name.ends_with(&query) 
+                        if file_name.starts_with(&query) 
                         {   
-                            handle_delete(&path.to_str().unwrap(), options)
+                            handle_delete(&path.to_str().unwrap(), options);
+                            continue;
                         }
                     },
-                    _ => {
-
-                    }
+                    _ => {}
                 }
             }
             else {

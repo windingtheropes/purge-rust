@@ -2,6 +2,7 @@
 // provides the Options type to run purge. added to a separate library for organisation
 
 use std::fs;
+use std::io::{stdin, stdout, Write, Error};
 use std::fs::Metadata;
 pub struct Options {
     // arguments
@@ -25,7 +26,7 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn new(mut args: Vec<String>) -> Options {
+    pub fn new(args: Vec<String>) -> Options {
         // for i in &args {println!("{}", i)}
         let query: String = args[0].clone();
         let path: String = args[1].clone();
@@ -100,5 +101,38 @@ impl Options {
     }
     pub fn query(&self) -> &str {
         &self.query
+    }
+}
+
+fn delete_file(path: &str)
+{
+    let result: Result<(), Error> = fs::remove_file(path);
+    match result {
+        Ok(_) => println!("Deleted {}", path),
+        Err(_) => println!("Error deleting {}", path),
+
+    }
+}
+
+pub fn handle_delete(path : &str, options: &Options)
+{
+    if options.no_ask == true
+    {
+        delete_file(path)
+    }   
+    else {
+        let mut s: String = String::new();
+        print!("Delete {}? (Y/N) ", path);
+        let _ = stdout().flush();
+        stdin().read_line(&mut s).expect("needed a value");
+        let s = s.as_str().trim().to_lowercase();
+        let s = s.as_str();
+        match s {
+            "y" => {
+                delete_file(path)
+            },
+            "n" => return println!("Not deleting {}", path),
+            _ => return println!("Not deleting {}", path),
+        };
     }
 }
