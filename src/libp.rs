@@ -30,7 +30,7 @@ impl Options {
     pub fn new(args: Vec<String>) -> Options {
         // for i in &args {println!("{}", i)}
         let query: String = args[0].clone();
-        let mut path: String = args[1].clone();
+        let path: String = args[1].clone();
         
         let mut flags = args.clone();
         // this removes query and path, so flags can be separated in to as many arguments as they want
@@ -83,7 +83,7 @@ impl Options {
                     's' => options.start = true,
                     'e' => options.end = true,
                     'x' => options.ext = true,
-                    'X' => options.multi_ext = true,
+                    'X' => {options.multi_ext = true; options.ext= true},
                     'c' => options.case_insensitive = true,
                     'y' => options.no_ask = true,
                     'v' => options.verbose = true,
